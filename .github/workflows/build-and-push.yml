@@ -1,0 +1,47 @@
+name: Docker build and push
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+        
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          version: latest
+
+      - name: Login to docker hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: build the image
+        id: build
+        run: |
+          LATEST_TAG=$(git ls-remote --tags origin |awk -F \/ '{print $NF}'|sort -Vr|head -1)
+          NEXT_TAG=$(docker run --rm alpine/semver:5.5.0 semver -c -i patch ${LATEST_TAG})
+          echo "::set-output name=tag::$NEXT_TAG"
+
+          echo ${NEXT_TAG}
+          GIT_VERSION=$(docker build . --no-cache | grep "Installing git" | awk -F '[()]' '{print $4}')
+          echo $GIT_VERSION
+
+          GIT_VERSION=$GIT_VERSION TAG_VERSION=$NEXT_TAG docker buildx bake --push
+
+      - name: Create Release
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "${{steps.build.outputs.tag}}"
