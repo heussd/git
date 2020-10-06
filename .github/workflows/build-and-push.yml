@@ -33,14 +33,15 @@ jobs:
         id: build
         run: |
           LATEST_TAG=$(git ls-remote --tags origin |awk -F \/ '{print $NF}'|sort -Vr|head -1)
-          NEXT_TAG=$(docker run --rm alpine/semver:5.5.0 semver -c -i patch ${LATEST_TAG})
+          NEXT_TAG=$(docker run --rm alpine/semver:latest semver -c -i patch ${LATEST_TAG})
           echo "::set-output name=tag::$NEXT_TAG"
 
-          echo ${NEXT_TAG}
-          GIT_VERSION=$(docker build . --no-cache | grep "Installing git" | awk -F '[()]' '{print $4}')
-          echo $GIT_VERSION
+          GIT_REPORTED_VERSION=$(docker build . --no-cache | grep "Installing git" | awk -F '[()]' '{print $4}')
+          GIT_FULL_VERSION=$(docker run --rm alpine/semver:latest semver -c ${GIT_REPORTED_VERSION}) 
+          GIT_MAJOR_MINOR_VERSION=${GIT_FULL_VERSION%.*}
+          GIT_MAJOR_VERSION=${GIT_FULL_VERSION%.*.*}
 
-          GIT_VERSION=$GIT_VERSION TAG_VERSION=$NEXT_TAG docker buildx bake --push
+          GIT_FULL_VERSION=$GIT_FULL_VERSION GIT_MAJOR_VERSION=$GIT_MAJOR_VERSION GIT_MAJOR_MINOR_VERSION=$GIT_MAJOR_MINOR_VERSION docker buildx bake --push
 
       - name: Create Release
         uses: "marvinpinto/action-automatic-releases@latest"
